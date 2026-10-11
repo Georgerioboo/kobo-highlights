@@ -302,7 +302,16 @@ ejemplos:
   Exportar todos los libros de golpe:
     python kobo_highlights.py --all
 
-  Exportar todos en texto plano (.txt) en lugar de Markdown (.md):
+  Elegir libros y exportarlos en texto plano (.txt) en lugar de Markdown (.md):
+    python kobo_highlights.py --format txt
+
+  Texto plano y copiado al portapapeles:
+    python kobo_highlights.py -f txt -c
+
+  Texto plano sin que pregunte por Notion:
+    python kobo_highlights.py -f txt --no-notion
+
+  Exportar todos en texto plano:
     python kobo_highlights.py --all --format txt
 
   Cada resalte en un único párrafo, sin saltos de línea dentro:
