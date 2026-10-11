@@ -1,0 +1,29 @@
+# --- Datos personales: NUNCA subir ---
+# Base de datos del Kobo (historial de lectura y fragmentos de libros)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+.kobo/
+# Resaltes exportados
+kobo_highlights/
+exports/
+*.md
+!README.md
+*.txt
+!requirements*.txt
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# --- Sistema y editores ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
