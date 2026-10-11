@@ -80,16 +80,53 @@ A menu lists the books with highlights. Type a number (`3`), several (`1,4`), a 
 
 ### Examples
 
+**Markdown (default)**
+
 ```bash
+# Choose books from the menu (Markdown, the default format)
+python kobo_highlights.py
+
 # Choose books and copy them to the clipboard, ready to paste into Notion
 python kobo_highlights.py --copy
-
-# Export the whole library as plain text
-python kobo_highlights.py -a -f txt
-
-# Use a specific database path
-python kobo_highlights.py --db "F:\.kobo\KoboReader.sqlite"
 ```
+
+**Plain text (`.txt`)**
+
+```bash
+# Choose books and export them as plain text
+python kobo_highlights.py --format txt
+
+# Plain text and copied to the clipboard
+python kobo_highlights.py -f txt -c
+
+# Plain text without the Notion prompt
+python kobo_highlights.py -f txt --no-notion
+
+# The whole library as plain text
+python kobo_highlights.py -a -f txt
+```
+
+**Notion**
+
+```bash
+# Show what would be sent to Notion without changing anything
+python kobo_highlights.py --dry-run
+
+# Export only, without the Notion prompt
+python kobo_highlights.py --no-notion
+```
+
+**Other**
+
+```bash
+# Use a specific database path if the Kobo is not detected
+python kobo_highlights.py --db "F:\.kobo\KoboReader.sqlite"
+
+# Save the files in another folder
+python kobo_highlights.py --output "C:\Users\Jorge\Desktop\highlights"
+```
+
+The file format and Notion are independent: whatever format you choose for the file, the same highlights are sent to Notion.
 
 ## Notion sync
 
