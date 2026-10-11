@@ -1,4 +1,6 @@
 # --- Datos personales: NUNCA subir ---
+# Token de Notion
+.env
 # Base de datos del Kobo (historial de lectura y fragmentos de libros)
 *.sqlite
 *.sqlite-wal

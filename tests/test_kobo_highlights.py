@@ -191,11 +191,11 @@ def test_parsear_seleccion_invalida(entrada):
 
 def test_exportar_todos(ruta_db, tmp_path):
     salida = tmp_path / "salida"
-    kh.main(["--db", ruta_db, "--salida", str(salida), "--todos"])
+    kh.main(["--db", ruta_db, "--output", str(salida), "--all", "--no-notion"])
     archivos = sorted(p.name for p in salida.iterdir())
     assert archivos == ["Libro de prueba - Autora Inventada.md", "Otro libro.md"]
 
 
 def test_sin_kobo_sale_con_error(tmp_path):
     with pytest.raises(SystemExit):
-        kh.main(["--db", str(tmp_path / "no_existe.sqlite"), "--salida", str(tmp_path)])
+        kh.main(["--db", str(tmp_path / "no_existe.sqlite"), "--output", str(tmp_path), "--no-notion"])

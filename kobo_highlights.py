@@ -21,7 +21,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 
-VERSION = "2.1.1"
+VERSION = "3.0.1"
 CARPETA_SALIDA_POR_DEFECTO = os.path.join(os.path.expanduser("~"), "Documents", "kobo_highlights")
 
 # ---------------------------------------------------------------------------
@@ -270,9 +270,9 @@ def parsear_seleccion(entrada: str, total: int) -> list[int]:
 
 
 def exportar(con, libro: Libro, args) -> str:
-    resaltes = obtener_resaltes(con, libro.volume_id, conservar_parrafos=not args.sin_parrafos)
-    contenido = formatear(libro, resaltes, args.formato)
-    ruta = os.path.join(args.salida, nombre_archivo(libro, args.formato))
+    resaltes = obtener_resaltes(con, libro.volume_id, conservar_parrafos=not args.no_paragraphs)
+    contenido = formatear(libro, resaltes, args.format)
+    ruta = os.path.join(args.output, nombre_archivo(libro, args.format))
     with open(ruta, "w", encoding="utf-8") as f:
         f.write(contenido)
     n = len(resaltes)
@@ -285,7 +285,11 @@ Exporta los resaltes y notas de tu Kobo, ordenados como en el libro y con
 el texto limpio (sin saltos de línea a mitad de frase), listos para pegar.
 
 Conecta el Kobo por USB y ejecuta el script. Si no indicas ninguna opción,
-se abre un menú para elegir qué libros exportar."""
+se abre un menú para elegir qué libros exportar.
+
+Si configuras Notion (archivo .env, ver README), tras exportar te preguntará
+si quieres enviar esos libros a su página de Notion. Solo se envían los libros
+que elijas y nunca se borra ni modifica lo que ya hay en Notion."""
 
 EJEMPLOS = """\
 ejemplos:
@@ -293,33 +297,45 @@ ejemplos:
     python kobo_highlights.py
 
   Elegir libros y copiar el resultado al portapapeles para pegarlo en Notion:
-    python kobo_highlights.py --copiar
+    python kobo_highlights.py --copy
 
   Exportar todos los libros de golpe:
-    python kobo_highlights.py --todos
+    python kobo_highlights.py --all
 
   Exportar todos en texto plano (.txt) en lugar de Markdown (.md):
-    python kobo_highlights.py --todos --formato txt
+    python kobo_highlights.py --all --format txt
 
   Cada resalte en un único párrafo, sin saltos de línea dentro:
-    python kobo_highlights.py --sin-parrafos
+    python kobo_highlights.py --no-paragraphs
 
   Guardar los archivos en otra carpeta:
-    python kobo_highlights.py --salida "C:\\Users\\Jorge\\Desktop\\resaltes"
+    python kobo_highlights.py --output "C:\\Users\\Jorge\\Desktop\\resaltes"
 
   Si el Kobo no se detecta solo, indicar la ruta de su base de datos:
     python kobo_highlights.py --db "F:\\.kobo\\KoboReader.sqlite"
 
-  Combinar opciones con los atajos cortos (equivale a --todos --formato txt --copiar):
-    python kobo_highlights.py -t -f txt -c
+  Combinar opciones con los atajos cortos (equivale a --all --format txt --copy):
+    python kobo_highlights.py -a -f txt -c
+
+  Ver qué se enviaría a Notion sin cambiar nada:
+    python kobo_highlights.py --dry-run
+
+  Exportar sin que pregunte por Notion:
+    python kobo_highlights.py --no-notion
 
 en el menú interactivo:
   3        exporta el libro número 3
   1,4,7    exporta los libros 1, 4 y 7
   2-5      exporta del libro 2 al 5
-  t        exporta todos los libros
+  a        exporta todos los libros (all)
   h        muestra esta ayuda del menú
   q        sale del programa
+
+notion:
+  Tras exportar, responde 's' a «¿Enviar a Notion?». Para cada libro:
+  - si no tiene página en tu base de datos, pregunta si crearla;
+  - si ya la tiene, añade al final solo los resaltes que falten.
+  Si eliges todos los libros, pide una segunda confirmación.
 
 formatos de salida:
   md   Markdown. Al pegarlo en Notion, el título, los capítulos y las citas
@@ -331,7 +347,7 @@ AYUDA_MENU = """
   3        exporta el libro número 3
   1,4,7    exporta varios libros
   2-5      exporta un rango de libros
-  t        exporta todos
+  a        exporta todos (all)
   h        muestra esta ayuda
   q        salir   (para ver todas las opciones: python kobo_highlights.py --help)"""
 
@@ -351,22 +367,28 @@ def crear_parser() -> argparse.ArgumentParser:
         add_help=False,
     )
     g_que = p.add_argument_group("qué exportar")
-    g_que.add_argument("-t", "--todos", action="store_true",
+    g_que.add_argument("-a", "--all", action="store_true",
                        help="exporta todos los libros sin mostrar el menú")
 
     g_como = p.add_argument_group("cómo exportar")
-    g_como.add_argument("-f", "--formato", choices=["md", "txt"], default="md", metavar="{md,txt}",
+    g_como.add_argument("-f", "--format", choices=["md", "txt"], default="md", metavar="{md,txt}",
                         help="formato del archivo: md (para Notion) o txt (texto plano). Por defecto: md")
-    g_como.add_argument("-p", "--sin-parrafos", action="store_true",
+    g_como.add_argument("-p", "--no-paragraphs", action="store_true",
                         help="deja cada resalte en un único párrafo, sin saltos de línea")
-    g_como.add_argument("-c", "--copiar", action="store_true",
+    g_como.add_argument("-c", "--copy", action="store_true",
                         help="copia al portapapeles lo exportado, listo para pegar")
 
     g_donde = p.add_argument_group("rutas")
-    g_donde.add_argument("-s", "--salida", default=CARPETA_SALIDA_POR_DEFECTO, metavar="CARPETA",
+    g_donde.add_argument("-o", "--output", default=CARPETA_SALIDA_POR_DEFECTO, metavar="FOLDER",
                          help=f"carpeta donde se guardan los archivos. Por defecto: {CARPETA_SALIDA_POR_DEFECTO}")
-    g_donde.add_argument("-d", "--db", metavar="RUTA",
+    g_donde.add_argument("-d", "--db", metavar="PATH",
                          help="ruta a KoboReader.sqlite. Por defecto se busca el Kobo conectado")
+
+    g_notion = p.add_argument_group("notion")
+    g_notion.add_argument("--dry-run", action="store_true",
+                          help="muestra qué se enviaría a Notion sin cambiar nada")
+    g_notion.add_argument("--no-notion", action="store_true",
+                          help="no pregunta por Notion aunque esté configurado")
 
     g_otros = p.add_argument_group("otros")
     g_otros.add_argument("-h", "--help", action="help", help="muestra esta ayuda y sale")
@@ -380,13 +402,67 @@ def _copiar_y_avisar(textos: list[str]) -> None:
     print("  📋 Copiado al portapapeles." if ok else "  ⚠️  No se pudo copiar al portapapeles.")
 
 
+def _preguntar_si(pregunta: str) -> bool:
+    return input(pregunta).strip().lower() in ("s", "si", "sí")
+
+
+def enviar_a_notion(con, seleccionados: list[Libro], args, config: dict, todos: bool) -> None:
+    """Pregunta si enviar los libros elegidos a Notion y, si se confirma, los sincroniza."""
+    import notion_sync
+
+    n = len(seleccionados)
+    objeto = "este libro" if n == 1 else f"estos {n} libros"
+    pregunta = (f"\n🔗 ¿Simular el envío de {objeto} a Notion? (s/n): " if args.dry_run
+                else f"\n🔗 ¿Enviar {objeto} a Notion? (s/n): ")
+    if not _preguntar_si(pregunta):
+        return
+    if todos and not args.dry_run:
+        print(f"\n⚠️  Has elegido TODOS los libros ({n}). En Notion se crearán páginas nuevas para los que")
+        print("   no existan y se añadirán resaltes al final de las páginas que ya existen.")
+        if input("   Escribe 'si' para confirmar: ").strip().lower() not in ("si", "sí"):
+            print("   Cancelado. No se ha enviado nada a Notion.")
+            return
+
+    cliente = notion_sync.ClienteNotion(config["token"])
+    sync = notion_sync.SincronizadorNotion(cliente, config["database_id"], config.get("propiedad_autor"),
+                                           prueba=args.dry_run)
+    for libro in seleccionados:
+        print(f"\n  📘 {libro.titulo}")
+        try:
+            resaltes = obtener_resaltes(con, libro.volume_id, conservar_parrafos=not args.no_paragraphs)
+            r = sync.sincronizar_libro(libro.titulo, libro.autor, resaltes)
+        except notion_sync.ErrorNotion as e:
+            print(f"  ❌ {e.explicacion()}")
+            if e.codigo in (0, 401, 403, 404):
+                return  # error de configuración o conexión: no tiene sentido seguir
+            continue
+        prefijo = "(prueba) " if args.dry_run else ""
+        if r.estado == "creada":
+            print(f"  ✅ {prefijo}Página creada con {r.anadidos} resaltes.")
+        elif r.estado == "actualizada":
+            print(f"  ✅ {prefijo}{r.anadidos} resaltes añadidos ({r.ya_estaban} ya estaban).")
+        elif r.estado == "por_confirmar":
+            print("  ❓ (prueba) El título no coincide exactamente; en el envío real te preguntará cuál es.")
+        elif r.estado == "sin_cambios":
+            print(f"  ✔️  Sin cambios: los {r.ya_estaban} resaltes ya estaban en Notion.")
+        else:
+            print("  ⏭️  Omitido. No se ha tocado nada.")
+
+
 def main(argv=None):
     args = crear_parser().parse_args(argv)
 
     ruta_db = args.db or detectar_kobo()
     if not ruta_db or not os.path.isfile(ruta_db):
         sys.exit("❌ No encuentro el Kobo. Conéctalo o indica la ruta con --db.")
-    os.makedirs(args.salida, exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
+
+    config_notion = None
+    if not args.no_notion:
+        import notion_sync
+        config_notion = notion_sync.cargar_config([os.path.dirname(os.path.abspath(__file__)), os.getcwd()])
+        if args.dry_run and not config_notion:
+            sys.exit("❌ --dry-run necesita Notion configurado (NOTION_TOKEN y NOTION_DATABASE_ID en .env).")
 
     con, carpeta_tmp = abrir_copia_segura(ruta_db)
     try:
@@ -395,34 +471,40 @@ def main(argv=None):
             print("No se encontraron libros con resaltes.")
             return
 
-        if args.todos:
+        if args.all:
             textos = [exportar(con, libro, args) for libro in libros]
-            if args.copiar:
+            if args.copy:
                 _copiar_y_avisar(textos)
+            if config_notion:
+                enviar_a_notion(con, libros, args, config_notion, todos=True)
             return
 
         while True:
             print(f"\n📚 Libros con resaltes ({len(libros)}):\n")
             for i, libro in enumerate(libros, 1):
-                hecho = " ✓" if os.path.exists(os.path.join(args.salida, nombre_archivo(libro, args.formato))) else ""
+                hecho = " ✓" if os.path.exists(os.path.join(args.output, nombre_archivo(libro, args.format))) else ""
                 autor = f" — {libro.autor}" if libro.autor else ""
                 print(f"{i:3d}. {libro.titulo}{autor}  [{libro.num_resaltes}]{hecho}")
 
-            entrada = input("\nElige libro(s) (ej. 3 · 1,4 · 2-5 · t = todos · h = ayuda · q = salir): ").strip().lower()
+            entrada = input("\nElige libro(s) (ej. 3 · 1,4 · 2-5 · a = todos · h = ayuda · q = salir): ").strip().lower()
             if entrada in ("q", ""):
                 break
             if entrada in ("h", "?", "ayuda", "help"):
                 print(AYUDA_MENU)
                 continue
             try:
-                seleccion = list(range(len(libros))) if entrada == "t" else parsear_seleccion(entrada, len(libros))
+                todos = entrada in ("a", "t")
+                seleccion = list(range(len(libros))) if todos else parsear_seleccion(entrada, len(libros))
             except ValueError:
                 print("⚠️  Selección no válida. Escribe 'h' para ver la ayuda.")
                 continue
 
             textos = [exportar(con, libros[i], args) for i in seleccion]
-            if args.copiar:
+            if args.copy:
                 _copiar_y_avisar(textos)
+            if config_notion:
+                enviar_a_notion(con, [libros[i] for i in seleccion], args, config_notion,
+                                todos=(todos and len(libros) > 1))
     finally:
         con.close()
         shutil.rmtree(carpeta_tmp, ignore_errors=True)
